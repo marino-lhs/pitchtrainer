@@ -257,45 +257,49 @@
   const EARLY_CORRECT=['Correct','Well done','Nice work','Great job'];
   const ADV_CORRECT=['Awesome','Keep it up!','Impressive','Sweet!','Slay','Pop off!',"Let 'em cook!",'Huge W',"You're locked in",'Immaculate vibes','Strong aura','You should turn pro'];
   const WRONG_MSGS=['Crashed out','Cooked','Skill issue','Taking the L',"I'm crying",'Caught in 4k',"You're giving \'bad ear\'",'It\'s the effort for me','Is everything ok?','Try again','Yikes',"How's your rhythm?"];
-  // General pools (no game-state conditions)
+  // General pools
   const FO_CORRECT_MSGS=["You can't touch this!",'Main character energy right there',"They're shaking rn",'The glow-up is real',"Rent free in their head",'Absolutely unhinged','W player, W moment',"Okay, Mozart, we see you.",'Pure signal, zero noise.',"That sounded like victory.",'Total Hertz hero.','Perfect pitch energy!','Your eardrums are elite.','Resonance: 100.','Frequency master in the building.','Your brain is a literal tuner.','Caught that vibration like a pro.','Sound waves bow down to you.','Sonic accuracy on point.',"You've got the golden ear.",'Decibel demon!',"No cap, your ears are cracked.",'That was a total flex.','You may be The One','Built different.','Lowkey a musical genius.','Flawless','Are you the GOAT?','Playing 4D chess','You can taste victory','Ear training? You don\'t need it.','Frequency check: Passed with flying colors.'];
   const FO_WRONG_MSGS=["Oof, rough one","That hurt to watch","Down bad","The stumble arc","Yikes","Catastrophic","Fell off fr","That's rough buddy","Ow, that Hertz!","You should try next time","Feelin' the pressure!","Don't choke!","That's gotta sting","Not even close","You might be cooked","Bruh.","Caught you in 4K being wrong.","Delulu is not the solulu.","Did you just... guess?","Don't quit your day job","Down bad on that one.","Error 404: Pitch Not Found.","Feedback loop of failure.","It's giving... tone deaf.","Maybe try cleaning your ears?","Out of tune, out of time.","Signal lost. Please try again.","Silence would have been more accurate.","Sus behavior.","That ain't it, chief.","That frequency went right over your head.","That's a bold choice. A wrong one, but bold.","This is a major skill issue.","Total audio interference.","You're vibrating on the wrong level.","Your ear is on Airplane Mode.","The vultures are circling."];
-  // Context-specific: checked first, fall back to general pools if no condition met
-  function foContextCorrect(p, opp, oldBestDiff) {
-    const newBestDiff = p.bestDiff;
-    const matches = [];
-    // "Clutch!" — player on last life
-    if (p.lives === 1) matches.push("Clutch!");
-    // "Snatched the lead!" — just became leader in bestDiff
-    if (newBestDiff < opp.bestDiff && oldBestDiff >= opp.bestDiff) matches.push("Snatched the lead!");
-    // "You're catching up!" — was behind in bestDiff, still behind but gap is smaller
-    if (oldBestDiff > opp.bestDiff && newBestDiff > opp.bestDiff && newBestDiff < oldBestDiff) matches.push("You're catching up!");
-    // "Neck and neck!" — bestDiff within 2 percentage points
-    if (Math.abs(newBestDiff - opp.bestDiff) <= 2 && opp.totalCorrect > 0) matches.push("Neck and neck!");
-    // "The comeback arc begins" — behind in score
-    if (p.score < opp.score) matches.push("The comeback arc begins");
-    // "Your opponent is shaking right now." — currently leading in bestDiff
-    if (newBestDiff < opp.bestDiff && opp.totalCorrect > 0) matches.push("Your opponent is shaking right now.");
-    // "It's getting spicy!" — score gap within 2% of leader's score, p was losing
-    if (p.score > 0 && opp.score > 0 && p.score < opp.score) {
-      const gap = opp.score - p.score;
-      if (gap / opp.score <= 0.02) matches.push("It's getting spicy!");
-    }
-    // "You don't stand a chance." — current player has higher score
-    if (p.score > opp.score) matches.push("You don't stand a chance.");
-    if (!matches.length) return null;
-    return matches[Math.floor(Math.random() * matches.length)];
+  // Context-specific strings (separate lists for reset-tracking)
+  const FO_CTX_CORRECT=["Clutch!","Snatched the lead!","You're catching up!","Neck and neck!","The comeback arc begins","Your opponent is shaking right now.","It's getting spicy!","You don't stand a chance."];
+  const FO_CTX_WRONG=["Ratio incoming","Flat... like your chances of winning.","Your opponent is laughing in 440Hz."];
+
+  // Returns context-correct strings whose conditions are met (only when difficulty < 25%)
+  function foCtxCorrectMatches(p,opp,oldBD){
+    if(p.difficulty>=25)return[];
+    const bd=p.bestDiff,m=[];
+    if(p.lives===1)m.push("Clutch!");
+    if(bd<opp.bestDiff&&oldBD>=opp.bestDiff)m.push("Snatched the lead!");
+    if(oldBD>opp.bestDiff&&bd>opp.bestDiff&&bd<oldBD)m.push("You're catching up!");
+    if(Math.abs(bd-opp.bestDiff)<=2&&opp.totalCorrect>0)m.push("Neck and neck!");
+    if(p.score<opp.score)m.push("The comeback arc begins");
+    if(bd<opp.bestDiff&&opp.totalCorrect>0)m.push("Your opponent is shaking right now.");
+    if(p.score>0&&opp.score>0&&p.score<opp.score&&(opp.score-p.score)/opp.score<=0.02)m.push("It's getting spicy!");
+    if(p.score>opp.score)m.push("You don't stand a chance.");
+    return m;
   }
-  function foContextWrong(p, opp) {
-    const matches = [];
-    // "Ratio incoming" — opponent ahead by 30%+ in score
-    if (opp.score > 0 && (p.score === 0 || opp.score / p.score >= 1.3)) matches.push("Ratio incoming");
-    // "Flat... like your chances of winning." — losing in both score and bestDiff
-    if (p.score < opp.score && p.bestDiff > opp.bestDiff) matches.push("Flat... like your chances of winning.");
-    // "Your opponent is laughing in 440Hz." — opponent ahead in score
-    if (opp.score > p.score) matches.push("Your opponent is laughing in 440Hz.");
-    if (!matches.length) return null;
-    return matches[Math.floor(Math.random() * matches.length)];
+  // Returns context-wrong strings whose conditions are met (only when difficulty < 25%)
+  function foCtxWrongMatches(p,opp){
+    if(p.difficulty>=25)return[];
+    const m=[];
+    if(opp.score>0&&(p.score===0||opp.score/p.score>=1.3))m.push("Ratio incoming");
+    if(p.score<opp.score&&p.bestDiff>opp.bestDiff)m.push("Flat... like your chances of winning.");
+    if(opp.score>p.score)m.push("Your opponent is laughing in 440Hz.");
+    return m;
+  }
+  // Pick a comment, ensuring no repeat until all used
+  function foPick(general,ctxAll,usedSet,ctxMatches){
+    const totalSize=general.length+ctxAll.length;
+    if(usedSet.size>=totalSize)usedSet.clear();
+    // Prefer unused context matches
+    const availCtx=ctxMatches.filter(c=>!usedSet.has(c));
+    if(availCtx.length){const p=availCtx[Math.floor(Math.random()*availCtx.length)];usedSet.add(p);return p;}
+    // Unused general
+    const availGen=general.filter(c=>!usedSet.has(c));
+    if(availGen.length){const p=availGen[Math.floor(Math.random()*availGen.length)];usedSet.add(p);return p;}
+    // All used — reset and pick from general
+    usedSet.clear();
+    const p=general[Math.floor(Math.random()*general.length)];usedSet.add(p);return p;
   }
   const BADGE_DEFS=[
     {id:'musician',emoji:'🎻',alt:'Musician Badge', value:9.8,  comment:'You must be a musician!'},
@@ -486,7 +490,7 @@
   let foPlayers=[null,null],foCurrent=0;
   let foAnswered=false,foCorrectAnswer=null,foLastBase=null,foLastSecond=null;
   let foHasPlayed=false,foIsFirst=true,foAdvTimer=null;
-  let foCorrectPool=[],foWrongPool=[];
+  let foUsedCorrect=new Set(),foUsedWrong=new Set();
 
   function makeFOP(){return{score:0,lives:3,ll0Used:false,ll1Used:false,difficulty:WARMUP[0],lastCorrectDiff:WARMUP[0],consecutiveWrong:0,totalCorrect:0,bestDiff:WARMUP[0],out:false};}
 
@@ -547,26 +551,19 @@
     if(foAnswered)return;
     foAnswered=true;$('fo-btn-flat').disabled=true;$('fo-btn-sharp').disabled=true;$('fo-play-btn').disabled=true;
     const p=foPlayers[foCurrent],opp=foPlayers[1-foCurrent];
-    const correct=choice===foCorrectAnswer,diffAt=p.difficulty;
-    const oldBestDiff=p.bestDiff;
+    const correct=choice===foCorrectAnswer,diffAt=p.difficulty,oldBestDiff=p.bestDiff;
     (choice==='flat'?$('fo-btn-flat'):$('fo-btn-sharp')).className='choice-btn '+(correct?'correct':'wrong');
     if(!correct)(foCorrectAnswer==='flat'?$('fo-btn-flat'):$('fo-btn-sharp')).className='choice-btn correct';
     if(correct){
       p.lastCorrectDiff=p.difficulty;p.consecutiveWrong=0;p.totalCorrect++;
       p.score+=Math.round(100/Math.max(diffAt,0.1));p.difficulty=foNextDiff(p);p.bestDiff=Math.min(p.bestDiff,p.difficulty);
-      // Try context comment first, fall back to general pool
-      const ctx=foContextCorrect(p,opp,oldBestDiff);
-      if(ctx){$('fo-feedback').textContent=ctx;}
-      else{if(!foCorrectPool.length)foCorrectPool=shuffle(FO_CORRECT_MSGS);$('fo-feedback').textContent=foCorrectPool.pop();}
+      $('fo-feedback').textContent=foPick(FO_CORRECT_MSGS,FO_CTX_CORRECT,foUsedCorrect,foCtxCorrectMatches(p,opp,oldBestDiff));
       $('fo-feedback').className='feedback good';
     }else{
       p.consecutiveWrong++;
       p.difficulty=p.consecutiveWrong===1?(p.difficulty+p.lastCorrectDiff)/2:p.lastCorrectDiff;
       p.lives--;if(p.lives<=0)p.out=true;
-      // Try context comment first, fall back to general pool
-      const ctx=foContextWrong(p,opp);
-      if(ctx){$('fo-feedback').textContent=ctx;}
-      else{if(!foWrongPool.length)foWrongPool=shuffle(FO_WRONG_MSGS);$('fo-feedback').textContent=foWrongPool.pop();}
+      $('fo-feedback').textContent=foPick(FO_WRONG_MSGS,FO_CTX_WRONG,foUsedWrong,foCtxWrongMatches(p,opp));
       $('fo-feedback').className='feedback bad';
     }
     foUpdateBoth();
@@ -594,7 +591,7 @@
     if(foAdvTimer)clearTimeout(foAdvTimer);
     foPlayers=[makeFOP(),makeFOP()];foCurrent=0;
     foAnswered=false;foLastBase=null;foLastSecond=null;foHasPlayed=false;foIsFirst=true;
-    foCorrectPool=[];foWrongPool=[];
+    foUsedCorrect=new Set();foUsedWrong=new Set();
     $('faceoff-game').style.display='block';$('game-over').style.display='none';
     foUpdateBoth();foNewQ();
   }
