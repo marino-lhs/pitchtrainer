@@ -273,7 +273,7 @@
     if(p.lives===1)m.push("Clutch!");
     if(bd<opp.bestDiff&&oldBD>=opp.bestDiff)m.push("Snatched the lead!");
     if(oldBD>opp.bestDiff&&bd>opp.bestDiff&&bd<oldBD)m.push("You're catching up!");
-    if(Math.abs(bd-opp.bestDiff)<=2&&opp.totalCorrect>0)m.push("Neck and neck!");
+    if(Math.abs(bd-opp.bestDiff)<=2&&opp.totalCorrect>0&&bd<9)m.push("Neck and neck!");
     if(p.score<opp.score)m.push("The comeback arc begins");
     if(p.score>0&&opp.score>0&&p.score<opp.score&&(opp.score-p.score)/opp.score<=0.02)m.push("It's getting spicy!");
     if(p.score>opp.score)m.push("You don't stand a chance.");
@@ -564,7 +564,7 @@
       p.score+=Math.round(100/Math.max(diffAt,0.1));p.difficulty=foNextDiff(p);p.bestDiff=Math.min(p.bestDiff,p.difficulty);
       foTotalCorrect++;
       let comment;
-      if(foTotalCorrect<=5){
+      if(foTotalCorrect<=10){
         // Use starter comments for first 5 correct answers; fall back to general if starters exhausted
         comment=foPickStarter(foUsedStarter)||foPick(FO_CORRECT_MSGS,FO_CTX_CORRECT,foUsedCorrect,[]);
       }else{
