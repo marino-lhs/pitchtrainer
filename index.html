@@ -257,11 +257,13 @@
   const EARLY_CORRECT=['Correct','Well done','Nice work','Great job'];
   const ADV_CORRECT=['Awesome','Keep it up!','Impressive','Sweet!','Slay','Pop off!',"Let 'em cook!",'Huge W',"You're locked in",'Immaculate vibes','Strong aura','You should turn pro'];
   const WRONG_MSGS=['Crashed out','Cooked','Skill issue','Taking the L',"I'm crying",'Caught in 4k',"You're giving \'bad ear\'",'It\'s the effort for me','Is everything ok?','Try again','Yikes',"How's your rhythm?"];
+  // Starter comments — used for first 5 correct answers total across both players
+  const FO_STARTER_MSGS=['Good start','Solid','Nice work, player','Dialing it in',"You're just warming up",'You could do this all day','Not even hard for you','Correct, as expected','Keep it up'];
   // General pools
   const FO_CORRECT_MSGS=["You can't touch this!",'Main character energy right there',"They're shaking rn",'The glow-up is real',"Rent free in their head",'Absolutely unhinged','W player, W moment',"Okay, Mozart, we see you.",'Pure signal, zero noise.',"That sounded like victory.",'Total Hertz hero.','Perfect pitch energy!','Your eardrums are elite.','Resonance: 100.','Frequency master in the building.','Your brain is a literal tuner.','Caught that vibration like a pro.','Sound waves bow down to you.','Sonic accuracy on point.',"You've got the golden ear.",'Decibel demon!',"No cap, your ears are cracked.",'That was a total flex.','You may be The One','Built different.','Lowkey a musical genius.','Flawless','Are you the GOAT?','Playing 4D chess','You can taste victory','Ear training? You don\'t need it.','Frequency check: Passed with flying colors.'];
   const FO_WRONG_MSGS=["Oof, rough one","That hurt to watch","Down bad","The stumble arc","Yikes","Catastrophic","Fell off fr","That's rough buddy","Ow, that Hertz!","You should try next time","Feelin' the pressure!","Don't choke!","That's gotta sting","Not even close","You might be cooked","Bruh.","Caught you in 4K being wrong.","Delulu is not the solulu.","Did you just... guess?","Don't quit your day job","Down bad on that one.","Error 404: Pitch Not Found.","Feedback loop of failure.","It's giving... tone deaf.","Maybe try cleaning your ears?","Out of tune, out of time.","Signal lost. Please try again.","Silence would have been more accurate.","Sus behavior.","That ain't it, chief.","That frequency went right over your head.","That's a bold choice. A wrong one, but bold.","This is a major skill issue.","Total audio interference.","You're vibrating on the wrong level.","Your ear is on Airplane Mode.","The vultures are circling."];
-  // Context-specific strings (separate lists for reset-tracking)
-  const FO_CTX_CORRECT=["Clutch!","Snatched the lead!","You're catching up!","Neck and neck!","The comeback arc begins","Your opponent is shaking right now.","It's getting spicy!","You don't stand a chance."];
+  // Context-specific strings
+  const FO_CTX_CORRECT=["Clutch!","Snatched the lead!","You're catching up!","Neck and neck!","The comeback arc begins","It's getting spicy!","You don't stand a chance."];
   const FO_CTX_WRONG=["Ratio incoming","Flat... like your chances of winning.","Your opponent is laughing in 440Hz."];
 
   // Returns context-correct strings whose conditions are met (only when difficulty < 25%)
@@ -273,7 +275,6 @@
     if(oldBD>opp.bestDiff&&bd>opp.bestDiff&&bd<oldBD)m.push("You're catching up!");
     if(Math.abs(bd-opp.bestDiff)<=2&&opp.totalCorrect>0)m.push("Neck and neck!");
     if(p.score<opp.score)m.push("The comeback arc begins");
-    if(bd<opp.bestDiff&&opp.totalCorrect>0)m.push("Your opponent is shaking right now.");
     if(p.score>0&&opp.score>0&&p.score<opp.score&&(opp.score-p.score)/opp.score<=0.02)m.push("It's getting spicy!");
     if(p.score>opp.score)m.push("You don't stand a chance.");
     return m;
@@ -287,19 +288,22 @@
     if(opp.score>p.score)m.push("Your opponent is laughing in 440Hz.");
     return m;
   }
-  // Pick a comment, ensuring no repeat until all used
+  // Pick from general+context pool with no-repeat tracking
   function foPick(general,ctxAll,usedSet,ctxMatches){
     const totalSize=general.length+ctxAll.length;
     if(usedSet.size>=totalSize)usedSet.clear();
-    // Prefer unused context matches
     const availCtx=ctxMatches.filter(c=>!usedSet.has(c));
     if(availCtx.length){const p=availCtx[Math.floor(Math.random()*availCtx.length)];usedSet.add(p);return p;}
-    // Unused general
     const availGen=general.filter(c=>!usedSet.has(c));
     if(availGen.length){const p=availGen[Math.floor(Math.random()*availGen.length)];usedSet.add(p);return p;}
-    // All used — reset and pick from general
     usedSet.clear();
     const p=general[Math.floor(Math.random()*general.length)];usedSet.add(p);return p;
+  }
+  // Pick a starter comment without repeating; returns null once all starters used
+  function foPickStarter(usedSet){
+    const avail=FO_STARTER_MSGS.filter(c=>!usedSet.has(c));
+    if(!avail.length)return null;
+    const p=avail[Math.floor(Math.random()*avail.length)];usedSet.add(p);return p;
   }
   const BADGE_DEFS=[
     {id:'musician',emoji:'🎻',alt:'Musician Badge', value:9.8,  comment:'You must be a musician!'},
@@ -490,7 +494,8 @@
   let foPlayers=[null,null],foCurrent=0;
   let foAnswered=false,foCorrectAnswer=null,foLastBase=null,foLastSecond=null;
   let foHasPlayed=false,foIsFirst=true,foAdvTimer=null;
-  let foUsedCorrect=new Set(),foUsedWrong=new Set();
+  let foUsedCorrect=new Set(),foUsedWrong=new Set(),foUsedStarter=new Set();
+  let foTotalCorrect=0; // combined correct answers across both players
 
   function makeFOP(){return{score:0,lives:3,ll0Used:false,ll1Used:false,difficulty:WARMUP[0],lastCorrectDiff:WARMUP[0],consecutiveWrong:0,totalCorrect:0,bestDiff:WARMUP[0],out:false};}
 
@@ -557,7 +562,15 @@
     if(correct){
       p.lastCorrectDiff=p.difficulty;p.consecutiveWrong=0;p.totalCorrect++;
       p.score+=Math.round(100/Math.max(diffAt,0.1));p.difficulty=foNextDiff(p);p.bestDiff=Math.min(p.bestDiff,p.difficulty);
-      $('fo-feedback').textContent=foPick(FO_CORRECT_MSGS,FO_CTX_CORRECT,foUsedCorrect,foCtxCorrectMatches(p,opp,oldBestDiff));
+      foTotalCorrect++;
+      let comment;
+      if(foTotalCorrect<=5){
+        // Use starter comments for first 5 correct answers; fall back to general if starters exhausted
+        comment=foPickStarter(foUsedStarter)||foPick(FO_CORRECT_MSGS,FO_CTX_CORRECT,foUsedCorrect,[]);
+      }else{
+        comment=foPick(FO_CORRECT_MSGS,FO_CTX_CORRECT,foUsedCorrect,foCtxCorrectMatches(p,opp,oldBestDiff));
+      }
+      $('fo-feedback').textContent=comment;
       $('fo-feedback').className='feedback good';
     }else{
       p.consecutiveWrong++;
@@ -591,7 +604,7 @@
     if(foAdvTimer)clearTimeout(foAdvTimer);
     foPlayers=[makeFOP(),makeFOP()];foCurrent=0;
     foAnswered=false;foLastBase=null;foLastSecond=null;foHasPlayed=false;foIsFirst=true;
-    foUsedCorrect=new Set();foUsedWrong=new Set();
+    foUsedCorrect=new Set();foUsedWrong=new Set();foUsedStarter=new Set();foTotalCorrect=0;
     $('faceoff-game').style.display='block';$('game-over').style.display='none';
     foUpdateBoth();foNewQ();
   }
@@ -659,5 +672,6 @@
   setModeUI();updateLives();updateLifelines();updateCounters();soloNewQ();
 })();
 </script>
+<!-- Cloudflare Web Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "36c0784638e24738946031dc0d59f980"}'></script><!-- End Cloudflare Web Analytics -->
 </body>
 </html>
